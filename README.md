@@ -45,6 +45,7 @@ You can configure the refresh rate which resources to show:
 
 > **Notes:**
 > - The GPU data is only available when you use CUDA (only NVIDIA cards, sorry AMD users).
+> - On a GPU in MIG mode (e.g. a cloud instance with a slice of an H100 or RTX PRO 6000), each visible MIG slice is shown as its own GPU with its VRAM and utilization; temperature is the parent GPU's, since a slice has no sensor. Utilization needs GPM support (Hopper and newer); on older MIG GPUs such as the A100 it shows as unavailable. *(fork addition)*
 > - This extension needs ComfyUI 1915 (or higher).
 > - The cost of the monitor is low (0.1 to 0.5% of utilization), you can disable it from settings (`Refres rate` to `0`).
 > - Data comes from these libraries:
@@ -518,6 +519,12 @@ You have predefined switches (string, latent, image, conditioning) but you can u
 
 ## Changelog
 
+### friedrice fork
+
+Based on Crystools 1.27.4 (upstream commit `2f18256`).
+
+- Resources monitor: GPU monitoring on NVIDIA MIG devices (each visible MIG slice with its own name, VRAM and utilization; parent GPU temperature). Previously the GPU and VRAM monitors switched off on MIG.
+
 ### Crystools
 
 ### 1.27.0 (17/08/2025)
@@ -621,19 +628,28 @@ You have predefined switches (string, latent, image, conditioning) but you can u
 
 ## Installation
 
-### Install from GitHub
+### Install this fork
 1. Install [ComfyUi](https://github.com/comfyanonymous/ComfyUI).
-2. Clone this repo into `custom_nodes`:
+2. If the original Crystools is installed, remove it first (both register the same nodes): delete `ComfyUI/custom_nodes/ComfyUI-Crystools` or uninstall it from the manager.
+3. Clone this repo into `custom_nodes`:
     ```
     cd ComfyUI/custom_nodes
-    git clone https://github.com/crystian/comfyui-crystools.git
-    cd comfyui-crystools
+    git clone https://codeberg.org/friedrice/ComfyUI-Crystools.git
+    cd ComfyUI-Crystools
     pip install -r requirements.txt
     ```
-3. Start up ComfyUI.
+4. Start up ComfyUI.
+
+To switch an existing git checkout of the original to this fork instead, from its folder:
+```
+git remote set-url origin https://codeberg.org/friedrice/ComfyUI-Crystools.git
+git pull
+```
+
+Update it later with `git pull` in that folder. The manager and the Comfy registry install the original Crystools, not this fork.
 
 #### For AMD users
-If you are an AMD user with Linux, you can try the AMD branch:
+The fork has no AMD branch; use the original's, which installs the original Crystools:
 
 **ATTENTION:** Don't install with the manager, you need to install manually:
 
@@ -644,13 +660,13 @@ If you are an AMD user with Linux, you can try the AMD branch:
   pip install -r requirements.txt
   ```
 
-### Install from manager
+### Install the original from manager
 
-Search for `crystools` in the [manager](https://github.com/ltdrdata/ComfyUI-Manager.git) and install it.
+Search for `crystools` in the [manager](https://github.com/ltdrdata/ComfyUI-Manager.git) and install it. This installs the original Crystools, without the fork's changes.
 
 ### Using on Google Colab
 
-You can use it on Google Colab, but you need to install it manually:
+The Colab notebook installs the original Crystools. You can use it on Google Colab, but you need to install it manually:
 
 [Google Colab](https://colab.research.google.com/drive/1xiTiPmZkcIqNOsLQPO1UNCdJZqgK3U5k?usp=sharing)
 
