@@ -1,5 +1,9 @@
 # comfyui-crystools [![Donate](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://paypal.me/crystian77) <a src="https://colab.research.google.com/assets/colab-badge.svg" href="https://colab.research.google.com/drive/1xiTiPmZkcIqNOsLQPO1UNCdJZqgK3U5k?usp=sharing"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open in Colab"></a>
 
+> **Unofficial fork.** This is [friedrice](https://codeberg.org/friedrice)'s fork of [crystian/ComfyUI-Crystools](https://github.com/crystian/ComfyUI-Crystools), all credit to Crystian.
+> It adds GPU monitoring on NVIDIA MIG devices: each visible MIG slice is shown with its own VRAM and utilization, and the parent GPU's temperature.
+> Node names are unchanged, so it replaces the original; don't install both.
+
 **_🪛 A powerful set of tools for your belt when you work with ComfyUI 🪛_**
 
 With this suit, you can see the resources monitor, progress bar & time elapsed, metadata and compare between two images, compare between two JSONs, show any value to console/display, pipes, and more!
