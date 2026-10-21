@@ -47,6 +47,7 @@ class CGPUInfo:
     gpusUtilization = []
     gpusVRAM = []
     gpusTemperature = []
+    nvmlDevices = []
 
     def __init__(self):
         if IS_JETSON:
@@ -67,6 +68,7 @@ class CGPUInfo:
                 import pynvml
                 self.pynvml = pynvml
                 self.pynvml.nvmlInit()
+                self.nvmlDevices = self.getNvmlDevices()
                 self.pynvmlLoaded = True
                 logger.info('pynvml (NVIDIA) initialized.')
             except ImportError as e:
@@ -202,9 +204,44 @@ class CGPUInfo:
             'gpus': gpus,
         }
 
+    def getNvmlDevices(self):
+        """
+        Lists the devices to monitor. A GPU in MIG mode is replaced by its visible MIG devices,
+        because the parent GPU does not report memory or utilization in MIG mode.
+        """
+        devices = []
+        for index in range(self.pynvml.nvmlDeviceGetCount()):
+            parent = self.pynvml.nvmlDeviceGetHandleByIndex(index)
+
+            migDevices = []
+            try:
+                currentMode, _ = self.pynvml.nvmlDeviceGetMigMode(parent)
+                if currentMode == self.pynvml.NVML_DEVICE_MIG_ENABLE:
+                    for migIndex in range(self.pynvml.nvmlDeviceGetMaxMigDeviceCount(parent)):
+                        try:
+                            mig = self.pynvml.nvmlDeviceGetMigDeviceHandleByIndex(parent, migIndex)
+                        except self.pynvml.NVMLError:
+                            continue  # slot empty or not visible in this container
+                        migDevices.append({
+                            'handle': mig,
+                            'parent': parent,
+                            'gpuInstanceId': self.pynvml.nvmlDeviceGetGpuInstanceId(mig),
+                            'gpmSample': None,
+                        })
+            except self.pynvml.NVMLError:
+                pass  # MIG not supported on this GPU
+
+            if migDevices:
+                logger.info(f"GPU {index} is in MIG mode with {len(migDevices)} visible MIG device(s).")
+                devices.extend(migDevices)
+            else:
+                devices.append({'handle': parent, 'parent': parent, 'gpuInstanceId': None, 'gpmSample': None})
+
+        return devices
+
     def deviceGetCount(self):
         if self.pynvmlLoaded:
-            return self.pynvml.nvmlDeviceGetCount()
+            return len(self.nvmlDevices)
         elif self.jtopLoaded:
             # For Jetson devices, we assume there's one GPU
             return 1
@@ -213,7 +250,7 @@ class CGPUInfo:
 
     def deviceGetHandleByIndex(self, index):
         if self.pynvmlLoaded:
-            return self.pynvml.nvmlDeviceGetHandleByIndex(index)
+            return self.nvmlDevices[index]
         elif self.jtopLoaded:
             return index  # On Jetson, index acts as handle
         else:
@@ -224,7 +261,7 @@ class CGPUInfo:
             gpuName = 'Unknown GPU'
 
             try:
-                gpuName = self.pynvml.nvmlDeviceGetName(deviceHandle)
+                gpuName = self.pynvml.nvmlDeviceGetName(deviceHandle['handle'])
                 try:
                     gpuName = gpuName.decode('utf-8', errors='ignore')
                 except AttributeError:
@@ -258,7 +295,9 @@ class CGPUInfo:
 
     def deviceGetUtilizationRates(self, deviceHandle):
         if self.pynvmlLoaded:
-            return self.pynvml.nvmlDeviceGetUtilizationRates(deviceHandle).gpu
+            if deviceHandle['gpuInstanceId'] is None:
+                return self.pynvml.nvmlDeviceGetUtilizationRates(deviceHandle['handle']).gpu
+            return self.migGetUtilization(deviceHandle)
         elif self.jtopLoaded:
             # GPU utilization from jtop stats
             try:
@@ -270,9 +309,40 @@ class CGPUInfo:
         else:
             return 0
 
+    def migGetUtilization(self, device):
+        """
+        nvmlDeviceGetUtilizationRates is not supported on MIG, so use the GPM SM utilization
+        metric between the previous poll's sample and this one. The first poll returns 0.
+        """
+        sample = self.pynvml.nvmlGpmSampleAlloc()
+        try:
+            self.pynvml.nvmlGpmMigSampleGet(device['parent'], device['gpuInstanceId'], sample)
+        except Exception:
+            self.pynvml.nvmlGpmSampleFree(sample)
+            raise
+
+        previous = device['gpmSample']
+        device['gpmSample'] = sample
+        if previous is None:
+            return 0
+
+        try:
+            metrics = self.pynvml.c_nvmlGpmMetricsGet_t()
+            metrics.version = self.pynvml.NVML_GPM_METRICS_GET_VERSION
+            metrics.numMetrics = 1
+            metrics.sample1 = previous
+            metrics.sample2 = sample
+            metrics.metrics[0].metricId = self.pynvml.NVML_GPM_METRIC_SM_UTIL
+            self.pynvml.nvmlGpmMetricsGet(metrics)
+            if metrics.metrics[0].nvmlReturn != self.pynvml.NVML_SUCCESS:
+                raise self.pynvml.NVMLError(metrics.metrics[0].nvmlReturn)
+            return round(metrics.metrics[0].value)
+        finally:
+            self.pynvml.nvmlGpmSampleFree(previous)
+
     def deviceGetMemoryInfo(self, deviceHandle):
         if self.pynvmlLoaded:
-            mem = self.pynvml.nvmlDeviceGetMemoryInfo(deviceHandle)
+            mem = self.pynvml.nvmlDeviceGetMemoryInfo(deviceHandle['handle'])
             return {'total': mem.total, 'used': mem.used}
         elif self.jtopLoaded:
             mem_data = self.jtopInstance.memory['RAM']
@@ -284,7 +354,8 @@ class CGPUInfo:
 
     def deviceGetTemperature(self, deviceHandle):
         if self.pynvmlLoaded:
-            return self.pynvml.nvmlDeviceGetTemperature(deviceHandle, self.pynvml.NVML_TEMPERATURE_GPU)
+            # MIG devices have no sensor of their own; report the parent GPU's temperature.
+            return self.pynvml.nvmlDeviceGetTemperature(deviceHandle['parent'], self.pynvml.NVML_TEMPERATURE_GPU)
         elif self.jtopLoaded:
             try:
                 temperature = self.jtopInstance.stats.get('Temp gpu', -1)
