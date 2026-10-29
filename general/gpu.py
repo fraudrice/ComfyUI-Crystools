@@ -63,7 +63,7 @@ class CGPUInfo:
             except Exception as e:
                 logger.error('Could not initialize jtop. ' + str(e))
         else:
-            # Try to import pynvml for non-Jetson devices
+            # Try to import pynvml (provided by nvidia-ml-py) for non-Jetson devices
             try:
                 import pynvml
                 self.pynvml = pynvml
@@ -72,7 +72,7 @@ class CGPUInfo:
                 self.pynvmlLoaded = True
                 logger.info('pynvml (NVIDIA) initialized.')
             except ImportError as e:
-                logger.error('pynvml is not installed. ' + str(e))
+                logger.error('pynvml is not installed (pip install nvidia-ml-py). ' + str(e))
             except Exception as e:
                 logger.error('Could not init pynvml (NVIDIA). ' + str(e))
 

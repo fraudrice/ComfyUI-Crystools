@@ -51,7 +51,7 @@ You can configure the refresh rate which resources to show:
 > - Data comes from these libraries:
 >   - [psutil](https://pypi.org/project/psutil/)
 >   - [torch](https://pytorch.org/)
->   - [pynvml](https://pypi.org/project/pynvml/) (official NVIDIA library)
+>   - [nvidia-ml-py](https://pypi.org/project/nvidia-ml-py/) (NVIDIA's official NVML bindings; the old `pynvml` package on PyPI is deprecated and only wraps it)
 
 
 ### Progress bar
@@ -524,6 +524,7 @@ You have predefined switches (string, latent, image, conditioning) but you can u
 Based on Crystools 1.27.4 (upstream commit `2f18256`).
 
 - Resources monitor: GPU monitoring on NVIDIA MIG devices (each visible MIG slice with its own name, VRAM and utilization; parent GPU temperature). Previously the GPU and VRAM monitors switched off on MIG.
+- Dependencies: `nvidia-ml-py` replaces the deprecated `pynvml` package. The import name is unchanged, so an existing install keeps working; `pip install nvidia-ml-py` is enough to drop the deprecation warning.
 
 ### Crystools
 
